@@ -6,18 +6,55 @@ use InvalidArgumentException;
 use RuntimeException;
 
 /**
- * GeoHash32 class for encoding and decoding geographic coordinates into a 32-bit geohash.
- * Supports encoding, decoding, URL generation, QR code generation, and GeoJSON output.
+ * GeoHash32 class for encoding and decoding geographic coordinates into Base32 geohashes.
+ * 
+ * This library provides efficient encoding and decoding of latitude/longitude coordinates
+ * into compact, URL-safe geohash strings using Base32 encoding. Features include:
+ * - Variable precision (1-12 characters)
+ * - Bounding box calculation
+ * - URL generation for sharing
+ * - QR code generation (requires GD extension)
+ * - GeoJSON export for mapping applications
+ * - Performance benchmarking
+ * 
+ * @package GeoHash32
+ * @author Mohamed Imad <email2emad@gmail.com>
+ * @license MIT
+ * @version 1.0.0
+ * 
+ * @example
+ * ```php
+ * $geo = new GeoHash32();
+ * $geo->setHashLength(7);
+ * 
+ * // Encode coordinates
+ * $hash = $geo->encode(1.3521, 103.8198); // Singapore
+ * 
+ * // Decode back to coordinates with bounding box
+ * $decoded = $geo->decode($hash);
+ * echo "Lat: {$decoded['lat']}, Lng: {$decoded['lng']}";
+ * ```
  */
 
 class GeoHash32
 {
+    /** @var int Default hash length for encoding operations */
     private int $hashLength = 5;
+    
+    /** @var string Base32 alphabet used for geohash encoding (Crockford's Base32) */
     private const BASE32 = '0123456789bcdefghjkmnpqrstuvwxyz';
+    
+    /** @var int Base32 radix (32) */
     private const BASE = 32;
 
     // --- Configuration ---
 
+    /**
+     * Set the default hash length for encoding operations.
+     *
+     * @param int $length The desired hash length (1-12 characters)
+     * @return self Returns the instance for method chaining
+     */
     public function setHashLength(int $length): self
     {
         $this->hashLength = max(1, min(12, $length));
@@ -26,6 +63,14 @@ class GeoHash32
 
     // --- Encode/Decode ---
 
+    /**
+     * Encode latitude and longitude coordinates into a geohash string.
+     *
+     * @param float $lat Latitude coordinate (-90 to 90)
+     * @param float $lng Longitude coordinate (-180 to 180)
+     * @param int|null $len Optional hash length override (1-12 characters)
+     * @return string Base32 encoded geohash
+     */
     public function encode(float $lat, float $lng, ?int $len = null): string
     {
         $len = $len ?? $this->hashLength;
@@ -68,6 +113,13 @@ class GeoHash32
         return $this->base32Encode($bits, $len);
     }
 
+    /**
+     * Decode a geohash string back into latitude, longitude, and bounding box.
+     *
+     * @param string $hash The geohash string to decode
+     * @return array{lat: float, lng: float, bbox: array{sw: array{lat: float, lng: float}, ne: array{lat: float, lng: float}}}
+     * @throws InvalidArgumentException If the hash contains invalid characters
+     */
     public function decode(string $hash): array
     {
         $bits = $this->base32Decode($hash);
@@ -122,12 +174,26 @@ class GeoHash32
         ];
     }    // --- Utilities ---
 
+    /**
+     * Generate a URL with an embedded geohash.
+     *
+     * @param string $hash The geohash to embed in the URL
+     * @param string $base The base URL (without trailing slash)
+     * @return string Complete URL with embedded geohash
+     */
     public function toURL(string $hash, string $base = ''): string
     {
         $base = rtrim($base, '/');
         return $base . '/h/' . $hash;
     }
 
+    /**
+     * Generate a QR code image for a geohash (requires GD extension).
+     *
+     * @param string $hash The geohash to encode in the QR code
+     * @return string Base64 encoded PNG image data URI
+     * @throws RuntimeException If GD extension is not available
+     */
     public function toQR(string $hash): string
     {
         if (!extension_loaded('gd')) {
@@ -165,6 +231,14 @@ class GeoHash32
         return 'data:image/png;base64,' . base64_encode($imageData);
     }
 
+    /**
+     * Benchmark the encoding and decoding performance for given coordinates.
+     *
+     * @param float $lat Latitude coordinate to benchmark
+     * @param float $lng Longitude coordinate to benchmark  
+     * @param int|null $len Optional hash length override
+     * @return array{length: int, hash: string, decoded: array, encode_ms: float, decode_ms: float}
+     */
     public function benchmark(float $lat, float $lng, ?int $len = null): array
     {
         $len = $len ?? $this->hashLength;
@@ -186,6 +260,12 @@ class GeoHash32
         ];
     }
 
+    /**
+     * Get the approximate precision in meters for a given geohash length.
+     *
+     * @param int $length The geohash length (1-12 characters)
+     * @return float Approximate precision in meters
+     */
     public function getPrecisionMeters(int $length): float
     {
         $bits = $length * 5;
@@ -201,6 +281,12 @@ class GeoHash32
         return round(max($latMeters, $lngMeters), 2);
     }
 
+    /**
+     * Suggest the optimal geohash length for a target precision in meters.
+     *
+     * @param float $targetMeters The desired precision in meters
+     * @return int Recommended geohash length (1-12 characters)
+     */
     public function suggestLengthForPrecision(float $targetMeters): int
     {
         for ($len = 1; $len <= 12; $len++) {
@@ -211,6 +297,12 @@ class GeoHash32
         return 12;
     }
 
+    /**
+     * Decode a geohash with additional bounding box information and precision metrics.
+     *
+     * @param string $hash The geohash string to decode
+     * @return array{lat: float, lng: float, bbox: array, precision_m: float}
+     */
     public function decodeWithBoundingBox(string $hash): array
     {
         $decoded = $this->decode($hash);
@@ -239,6 +331,14 @@ class GeoHash32
         ];
     }
 
+    /**
+     * Export a geohash as GeoJSON with bounding box and optional center point.
+     *
+     * @param string $hash The geohash to export
+     * @param bool $includeCenter Whether to include the center point feature
+     * @param float $paddingMeters Optional padding around the bounding box in meters
+     * @return string JSON-encoded GeoJSON FeatureCollection
+     */
     public function toGeoJSON(string $hash, bool $includeCenter = true, float $paddingMeters = 0): string
     {
         $decoded = $this->decodeWithBoundingBox($hash);
@@ -290,16 +390,43 @@ class GeoHash32
 
     // --- Internal Bit Operations ---
 
+    /**
+     * Normalize a coordinate value to an integer within the specified bit range.
+     *
+     * @param float $value The coordinate value to normalize
+     * @param float $min The minimum value of the coordinate range
+     * @param float $max The maximum value of the coordinate range
+     * @param int $bits The number of bits to use for the normalized value
+     * @return int Normalized integer value
+     */
     private function normalize(float $value, float $min, float $max, int $bits): int
     {
         return (int) round((($value - $min) / ($max - $min)) * ((1 << $bits) - 1));
     }
 
+    /**
+     * Denormalize an integer value back to a coordinate within the specified range.
+     *
+     * @param int $value The normalized integer value
+     * @param float $min The minimum value of the coordinate range
+     * @param float $max The maximum value of the coordinate range
+     * @param int $bits The number of bits used for normalization
+     * @return float Denormalized coordinate value
+     */
     private function denormalize(int $value, float $min, float $max, int $bits): float
     {
         return $min + ($value / ((1 << $bits) - 1)) * ($max - $min);
     }
 
+    /**
+     * Interleave latitude and longitude bits to create the geohash bit pattern.
+     *
+     * @param int $latBits Normalized latitude bits
+     * @param int $lngBits Normalized longitude bits
+     * @param int $latLen Number of latitude bits
+     * @param int $lngLen Number of longitude bits
+     * @return int Interleaved bit pattern
+     */
     private function interleaveBits(int $latBits, int $lngBits, int $latLen, int $lngLen): int
     {
         $result = 0;
@@ -318,6 +445,14 @@ class GeoHash32
         return $result;
     }
 
+    /**
+     * Split interleaved bits back into separate latitude and longitude components.
+     *
+     * @param int $bits The interleaved bit pattern
+     * @param int $latLen Number of latitude bits expected
+     * @param int $lngLen Number of longitude bits expected
+     * @return array{0: int, 1: int} Array containing [latitude bits, longitude bits]
+     */
     private function splitBits(int $bits, int $latLen, int $lngLen): array
     {
         $lat = 0;
@@ -337,6 +472,13 @@ class GeoHash32
         return [$lat, $lng];
     }
 
+    /**
+     * Encode an integer bit pattern into a Base32 string.
+     *
+     * @param int $bits The bit pattern to encode
+     * @param int $length The desired length of the resulting string
+     * @return string Base32 encoded string
+     */
     private function base32Encode(int $bits, int $length): string
     {
         $str = '';
@@ -347,6 +489,13 @@ class GeoHash32
         return $str;
     }
 
+    /**
+     * Decode a Base32 string back into an integer bit pattern.
+     *
+     * @param string $hash The Base32 string to decode
+     * @return int Decoded bit pattern
+     * @throws InvalidArgumentException If the hash contains invalid Base32 characters
+     */
     private function base32Decode(string $hash): int
     {
         $val = 0;

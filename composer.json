@@ -1,0 +1,34 @@
+{
+    "name": "imadeous/geohash32",
+    "description": "A minimal Base32 geohash encoder/decoder with precision control and mapping support.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["geohash", "base32", "geocoding", "location", "mapping", "coordinates"],
+    "homepage": "https://github.com/imadeous/geohash32",
+    "autoload": {
+        "psr-4": {
+            "GeoHash32\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "GeoHash32\\Tests\\": "tests/"
+        }
+    },
+    "require": {
+        "php": ">=8.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0"
+    },
+    "scripts": {
+        "test": "phpunit",
+        "test-coverage": "phpunit --coverage-html coverage"
+    },
+    "authors": [
+        {
+            "name": "Mohamed Imad",
+            "email": "email2emad@gmail.com"
+        }
+    ]
+}

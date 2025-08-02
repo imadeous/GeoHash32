@@ -40,10 +40,10 @@ class GeoHash32
 {
     /** @var int Default hash length for encoding operations */
     private int $hashLength = 5;
-    
+
     /** @var string Base32 alphabet used for geohash encoding (Crockford's Base32) */
     private const BASE32 = '0123456789bcdefghjkmnpqrstuvwxyz';
-    
+
     /** @var int Base32 radix (32) */
     private const BASE = 32;
 

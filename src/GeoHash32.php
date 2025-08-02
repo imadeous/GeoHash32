@@ -29,35 +29,98 @@ class GeoHash32
     public function encode(float $lat, float $lng, ?int $len = null): string
     {
         $len = $len ?? $this->hashLength;
-        $totalBits = $len * 5;
 
-        $latBits = (int) floor($totalBits / 2);
-        $lngBits = $totalBits - $latBits;
+        // Clamp coordinates to valid ranges
+        $lat = max(-90.0, min(90.0, $lat));
+        $lng = max(-180.0, min(180.0, $lng));
 
-        $latNorm = $this->normalize($lat, -90, 90, $latBits);
-        $lngNorm = $this->normalize($lng, -180, 180, $lngBits);
+        $latMin = -90.0;
+        $latMax = 90.0;
+        $lngMin = -180.0;
+        $lngMax = 180.0;
 
-        $bits = $this->interleaveBits($latNorm, $lngNorm, $latBits, $lngBits);
+        $bits = 0;
+        $isEven = true; // Start with longitude (even)
+
+        for ($i = 0; $i < $len * 5; $i++) {
+            $bits <<= 1;
+
+            if ($isEven) { // Longitude
+                $mid = ($lngMin + $lngMax) / 2;
+                if ($lng >= $mid) {
+                    $bits |= 1;
+                    $lngMin = $mid;
+                } else {
+                    $lngMax = $mid;
+                }
+            } else { // Latitude
+                $mid = ($latMin + $latMax) / 2;
+                if ($lat >= $mid) {
+                    $bits |= 1;
+                    $latMin = $mid;
+                } else {
+                    $latMax = $mid;
+                }
+            }
+            $isEven = !$isEven;
+        }
 
         return $this->base32Encode($bits, $len);
     }
 
     public function decode(string $hash): array
     {
-        $totalBits = strlen($hash) * 5;
-        $latBits = (int) floor($totalBits / 2);
-        $lngBits = $totalBits - $latBits;
-
         $bits = $this->base32Decode($hash);
-        [$latBitsVal, $lngBitsVal] = $this->splitBits($bits, $latBits, $lngBits);
+        $totalBits = strlen($hash) * 5;
 
-        $lat = $this->denormalize($latBitsVal, -90, 90, $latBits);
-        $lng = $this->denormalize($lngBitsVal, -180, 180, $lngBits);
+        $latMin = -90.0;
+        $latMax = 90.0;
+        $lngMin = -180.0;
+        $lngMax = 180.0;
 
-        return ['lat' => round($lat, 6), 'lng' => round($lng, 6)];
-    }
+        $isEven = true; // Start with longitude (even)
 
-    // --- Utilities ---
+        for ($i = $totalBits - 1; $i >= 0; $i--) {
+            $bit = ($bits >> $i) & 1;
+
+            if ($isEven) { // Longitude
+                $mid = ($lngMin + $lngMax) / 2;
+                if ($bit === 1) {
+                    $lngMin = $mid;
+                } else {
+                    $lngMax = $mid;
+                }
+            } else { // Latitude
+                $mid = ($latMin + $latMax) / 2;
+                if ($bit === 1) {
+                    $latMin = $mid;
+                } else {
+                    $latMax = $mid;
+                }
+            }
+            $isEven = !$isEven;
+        }
+
+        $lat = ($latMin + $latMax) / 2;
+        $lng = ($lngMin + $lngMax) / 2;
+
+        $bbox = [
+            'sw' => [
+                'lat' => $latMin,
+                'lng' => $lngMin
+            ],
+            'ne' => [
+                'lat' => $latMax,
+                'lng' => $lngMax
+            ]
+        ];
+
+        return [
+            'lat' => round($lat, 6),
+            'lng' => round($lng, 6),
+            'bbox' => $bbox
+        ];
+    }    // --- Utilities ---
 
     public function toURL(string $hash, string $base = ''): string
     {
@@ -243,10 +306,13 @@ class GeoHash32
         $maxLen = max($latLen, $lngLen);
 
         for ($i = 0; $i < $maxLen; $i++) {
-            $result <<= 1;
-            if ($i < $latLen) $result |= ($latBits >> ($latLen - $i - 1)) & 1;
+            // Longitude bit first (even positions)
             $result <<= 1;
             if ($i < $lngLen) $result |= ($lngBits >> ($lngLen - $i - 1)) & 1;
+
+            // Latitude bit second (odd positions)
+            $result <<= 1;
+            if ($i < $latLen) $result |= ($latBits >> ($latLen - $i - 1)) & 1;
         }
 
         return $result;
@@ -259,10 +325,13 @@ class GeoHash32
         $totalLen = max($latLen, $lngLen);
 
         for ($i = 0; $i < $totalLen; $i++) {
-            if ($i < $latLen)
-                $lat = ($lat << 1) | (($bits >> (($totalLen - $i - 1) * 2 + 1)) & 1);
+            // Extract longitude bit (even positions - rightmost bit of each pair)
             if ($i < $lngLen)
                 $lng = ($lng << 1) | (($bits >> (($totalLen - $i - 1) * 2)) & 1);
+
+            // Extract latitude bit (odd positions - second rightmost bit of each pair)
+            if ($i < $latLen)
+                $lat = ($lat << 1) | (($bits >> (($totalLen - $i - 1) * 2 + 1)) & 1);
         }
 
         return [$lat, $lng];

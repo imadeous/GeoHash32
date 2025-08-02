@@ -3,7 +3,14 @@
     "description": "A minimal Base32 geohash encoder/decoder with precision control and mapping support.",
     "type": "library",
     "license": "MIT",
-    "keywords": ["geohash", "base32", "geocoding", "location", "mapping", "coordinates"],
+    "keywords": [
+        "geohash",
+        "base32",
+        "geocoding",
+        "location",
+        "mapping",
+        "coordinates"
+    ],
     "homepage": "https://github.com/imadeous/geohash32",
     "autoload": {
         "psr-4": {

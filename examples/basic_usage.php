@@ -1,4 +1,5 @@
 <?php
+
 /**
  * GeoHash32 Library - Usage Examples
  * 
@@ -47,7 +48,7 @@ $coordinates = [
 foreach ([3, 5, 7, 9] as $precision) {
     echo "Precision level $precision:\n";
     $geo->setHashLength($precision);
-    
+
     foreach ($coordinates as $city => $coords) {
         $hash = $geo->encode($coords[0], $coords[1]);
         echo "  $city: $hash\n";
